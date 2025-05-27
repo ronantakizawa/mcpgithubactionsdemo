@@ -20,8 +20,6 @@ class GitHubMCPClient {
         '--rm',
         '-e',
         'GITHUB_PERSONAL_ACCESS_TOKEN',
-        '--toolsets',
-        'repos,issues', // Only enable the toolsets we need
         'ghcr.io/github/github-mcp-server'
       ],
       env: {
