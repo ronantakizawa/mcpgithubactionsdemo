@@ -127,8 +127,10 @@ function categorizeIssues(issues) {
       categories.closed.push(issue);
     }
     
-    // Label-based categorization
-    const labels = issue.labels.map(label => label.name.toLowerCase());
+    // Label-based categorization - safely handle missing labels
+    const labels = (issue.labels || []).map(label => 
+      typeof label === 'string' ? label.toLowerCase() : (label?.name || '').toLowerCase()
+    );
     
     if (labels.some(l => l.includes('bug') || l.includes('error') || l.includes('fix'))) {
       categories.bugs.push(issue);
@@ -157,14 +159,19 @@ function categorizeIssues(issues) {
 function formatIssueForReadme(issue, includeState = true) {
   const state = issue.state === 'open' ? '🔓' : '🔒';
   const stateText = includeState ? ` ${state}` : '';
-  const labels = issue.labels.length > 0 
-    ? ` \`${issue.labels.map(l => l.name).join('`, `')}\``
+  
+  // Safely handle labels
+  const labels = (issue.labels || []);
+  const labelText = labels.length > 0 
+    ? ` \`${labels.map(l => typeof l === 'string' ? l : (l?.name || 'unknown')).join('`, `')}\``
     : '';
+  
+  // Safely handle assignee
   const assignee = issue.assignee 
     ? ` - Assigned to @${issue.assignee.login}`
     : '';
   
-  return `- [#${issue.number}](${issue.html_url})${stateText} **${issue.title}**${labels}${assignee}`;
+  return `- [#${issue.number}](${issue.html_url})${stateText} **${issue.title}**${labelText}${assignee}`;
 }
 
 function generateIssuesSection(categories, repoInfo) {
@@ -344,7 +351,23 @@ async function main() {
     }
 
     // Categorize issues
-    const categories = categorizeIssues(issues);
+    console.log('🔍 Debug: Sample issue structure...');
+    if (issues.length > 0) {
+      const sampleIssue = issues[0];
+      console.log('Sample issue keys:', Object.keys(sampleIssue));
+      console.log('Sample issue labels:', sampleIssue.labels);
+      console.log('Sample issue state:', sampleIssue.state);
+      console.log('Sample issue number:', sampleIssue.number);
+    }
+    
+    let categories;
+    try {
+      categories = categorizeIssues(issues);
+    } catch (categorizationError) {
+      console.error('❌ Error during issue categorization:', categorizationError.message);
+      console.log('🔍 Issues data for debugging:', JSON.stringify(issues.slice(0, 2), null, 2));
+      throw categorizationError;
+    }
     console.log('📊 Issue categorization complete:');
     console.log(`- Open: ${categories.open.length}`);
     console.log(`- Closed: ${categories.closed.length}`);
