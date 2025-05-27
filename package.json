@@ -4,8 +4,7 @@
   "type": "module",
   "description": "GitHub Actions workflow with MCP-connected LLM",
   "scripts": {
-    "analyze": "node .github/scripts/mcp-analysis.js",
-    "security": "node .github/scripts/security-analysis.js"
+    "analyze": "node .github/scripts/openai-mcp-analysis.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.5.0",
