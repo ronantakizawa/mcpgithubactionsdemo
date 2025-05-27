@@ -30,13 +30,13 @@ jobs:
       - name: Install dependencies
         run: |
           npm init -y
-          npm install @modelcontextprotocol/sdk anthropic @octokit/rest
+          npm install @modelcontextprotocol/sdk openai @octokit/rest
 
       - name: Run MCP AI Analysis
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO_OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
-        run: node .github/scripts/mcp-analysis.js
+        run: node .github/scripts/openai-mcp-analysis.js
