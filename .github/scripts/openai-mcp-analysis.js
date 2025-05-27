@@ -1,5 +1,4 @@
 // .github/scripts/openai-mcp-analysis.js
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import OpenAI from 'openai';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -8,222 +7,20 @@ import { Octokit } from '@octokit/rest';
 
 const execAsync = promisify(exec);
 
-class GitHubMCPServer {
-  constructor() {
-    this.server = new Server(
-      {
-        name: "github-analysis-server",
-        version: "1.0.0",
-      },
-      {
-        capabilities: {
-          tools: {},
-        },
-      }
-    );
-
-    this.setupTools();
-  }
-
-  setupTools() {
-    // Tool to get git diff
-    this.server.setRequestHandler('tools/call', async (request) => {
-      const { name, arguments: args } = request.params;
-
-      switch (name) {
-        case 'get_git_diff':
-          return await this.getGitDiff(args.base, args.head);
-        
-        case 'get_file_content':
-          return await this.getFileContent(args.path);
-        
-        case 'analyze_code_quality':
-          return await this.analyzeCodeQuality(args.files);
-        
-        case 'get_pr_context':
-          return await this.getPRContext();
-        
-        default:
-          throw new Error(`Unknown tool: ${name}`);
-      }
-    });
-
-    // Register available tools - same as before
-    this.server.setRequestHandler('tools/list', async () => {
-      return {
-        tools: [
-          {
-            name: 'get_git_diff',
-            description: 'Get git diff between two commits',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                base: { type: 'string', description: 'Base commit SHA' },
-                head: { type: 'string', description: 'Head commit SHA' }
-              },
-              required: ['base', 'head']
-            }
-          },
-          {
-            name: 'get_file_content',
-            description: 'Get content of a specific file',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                path: { type: 'string', description: 'File path' }
-              },
-              required: ['path']
-            }
-          },
-          {
-            name: 'analyze_code_quality',
-            description: 'Analyze code quality metrics',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                files: { type: 'array', items: { type: 'string' } }
-              },
-              required: ['files']
-            }
-          },
-          {
-            name: 'get_pr_context',
-            description: 'Get pull request context and metadata',
-            inputSchema: {
-              type: 'object',
-              properties: {}
-            }
-          }
-        ]
-      };
-    });
-  }
-
-  // Same tool methods as before...
-  async getGitDiff(base, head) {
-    try {
-      const { stdout } = await execAsync(`git diff ${base}..${head} --name-only`);
-      const changedFiles = stdout.trim().split('\n').filter(f => f);
-      
-      const { stdout: diffOutput } = await execAsync(`git diff ${base}..${head}`);
-      
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            changed_files: changedFiles,
-            diff: diffOutput
-          }, null, 2)
-        }]
-      };
-    } catch (error) {
-      return {
-        content: [{
-          type: 'text',
-          text: `Error getting git diff: ${error.message}`
-        }]
-      };
-    }
-  }
-
-  async getFileContent(path) {
-    try {
-      const content = await fs.readFile(path, 'utf-8');
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            path,
-            content,
-            size: content.length,
-            lines: content.split('\n').length
-          }, null, 2)
-        }]
-      };
-    } catch (error) {
-      return {
-        content: [{
-          type: 'text',
-          text: `Error reading file ${path}: ${error.message}`
-        }]
-      };
-    }
-  }
-
-  async analyzeCodeQuality(files) {
-    const analysis = {
-      files_analyzed: files.length,
-      issues: [],
-      metrics: {}
-    };
-
-    for (const file of files) {
-      try {
-        const content = await fs.readFile(file, 'utf-8');
-        const lines = content.split('\n');
-        
-        const issues = [];
-        if (lines.length > 500) {
-          issues.push(`File ${file} is very large (${lines.length} lines)`);
-        }
-        
-        if (content.includes('TODO') || content.includes('FIXME')) {
-          issues.push(`File ${file} contains TODO/FIXME comments`);
-        }
-        
-        analysis.issues.push(...issues);
-        analysis.metrics[file] = {
-          lines: lines.length,
-          complexity: this.calculateComplexity(content)
-        };
-      } catch (error) {
-        analysis.issues.push(`Could not analyze ${file}: ${error.message}`);
-      }
-    }
-
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(analysis, null, 2)
-      }]
-    };
-  }
-
-  async getPRContext() {
-    const context = {
-      pr_number: process.env.PR_NUMBER,
-      repo: `${process.env.REPO_OWNER}/${process.env.REPO_NAME}`,
-      branch: process.env.GITHUB_HEAD_REF,
-      base_branch: process.env.GITHUB_BASE_REF
-    };
-
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(context, null, 2)
-      }]
-    };
-  }
-
-  calculateComplexity(content) {
-    const keywords = ['if', 'else', 'for', 'while', 'switch', 'case', 'try', 'catch'];
-    let complexity = 1;
-    
-    for (const keyword of keywords) {
-      const matches = content.match(new RegExp(`\\b${keyword}\\b`, 'g'));
-      if (matches) complexity += matches.length;
-    }
-    
-    return complexity;
-  }
-}
-
-// Main analysis function with OpenAI
 async function runAnalysis() {
   try {
+    console.log('🚀 Starting AI analysis...');
+    
+    // Debug: Check if API key exists
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is not set');
+    }
+    console.log('✅ OpenAI API key found:', apiKey.substring(0, 10) + '...');
+
     // Initialize OpenAI client
     const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: apiKey,
     });
 
     const octokit = new Octokit({
@@ -232,154 +29,154 @@ async function runAnalysis() {
 
     // Get PR information
     const prNumber = process.env.PR_NUMBER;
-    const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
+    const githubRepo = process.env.GITHUB_REPOSITORY;
+    
+    console.log('📋 Environment variables:');
+    console.log('- PR_NUMBER:', prNumber);
+    console.log('- GITHUB_REPOSITORY:', githubRepo);
+    
+    if (!githubRepo) {
+      throw new Error('GITHUB_REPOSITORY environment variable is not set');
+    }
+    
+    const [owner, repo] = githubRepo.split('/');
+    console.log(`📊 Analyzing repo: ${owner}/${repo}, PR: ${prNumber || 'N/A'}`);
 
     let prInfo = null;
     if (prNumber) {
-      const { data } = await octokit.rest.pulls.get({
-        owner,
-        repo,
-        pull_number: parseInt(prNumber),
-      });
-      prInfo = data;
+      try {
+        const { data } = await octokit.rest.pulls.get({
+          owner,
+          repo,
+          pull_number: parseInt(prNumber),
+        });
+        prInfo = data;
+        console.log(`📝 PR Title: ${prInfo.title}`);
+      } catch (error) {
+        console.log('⚠️ Could not get PR info:', error.message);
+      }
     }
 
     // Get changed files
+    console.log('🔍 Getting changed files...');
     const { stdout } = await execAsync('git diff --name-only HEAD~1 HEAD');
     const changedFiles = stdout.trim().split('\n').filter(f => f);
+    
+    console.log('📁 Changed files:', changedFiles);
 
-    // Read changed files for context
+    if (changedFiles.length === 0) {
+      console.log('❌ No files changed, skipping analysis');
+      return;
+    }
+
+    // Read changed files for context (limit to first 2 files)
     const fileContents = {};
-    for (const file of changedFiles.slice(0, 5)) {
+    for (const file of changedFiles.slice(0, 2)) {
       try {
-        fileContents[file] = await fs.readFile(file, 'utf-8');
+        const content = await fs.readFile(file, 'utf-8');
+        fileContents[file] = content.substring(0, 1000); // Limit content size
+        console.log(`📖 Read file: ${file} (${content.length} chars, truncated to 1000)`);
       } catch (error) {
-        console.log(`Could not read ${file}: ${error.message}`);
+        console.log(`❌ Could not read ${file}: ${error.message}`);
       }
     }
 
     // Create analysis prompt
-    const analysisPrompt = `
-You are a senior software engineer reviewing code changes. Please analyze the following:
+    const analysisPrompt = `You are a senior software engineer reviewing code changes.
 
-${prInfo ? `
-PR Title: ${prInfo.title}
-PR Description: ${prInfo.body}
-` : ''}
+${prInfo ? `PR: ${prInfo.title}` : 'Direct push'}
 
 Changed Files: ${changedFiles.join(', ')}
 
 File Contents:
 ${Object.entries(fileContents).map(([file, content]) => 
-  `--- ${file} ---\n${content.substring(0, 2000)}${content.length > 2000 ? '\n...(truncated)' : ''}`
-).join('\n\n')}
+  `--- ${file} ---\n${content}\n`
+).join('\n')}
 
-Please provide:
-1. Code quality assessment
-2. Potential issues or improvements
-3. Security considerations
-4. Performance implications
-5. Testing recommendations
+Please provide a brief code review with:
+1. Overall assessment
+2. Any issues or improvements
+3. Recommendations
 
-Format your response as a detailed code review comment.
-    `;
+Keep response under 300 words.`;
 
-    // Use OpenAI API with function calling for MCP tools
+    console.log('🤖 Calling OpenAI API...');
+    console.log('📏 Prompt length:', analysisPrompt.length, 'characters');
+
+    // Test OpenAI API with minimal call first
+    try {
+      const testResponse = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo', // Use cheaper model for testing
+        messages: [
+          {
+            role: 'user',
+            content: 'Hello, this is a test. Please respond with "API working".'
+          }
+        ],
+        max_tokens: 10,
+      });
+      
+      console.log('✅ OpenAI API test successful:', testResponse.choices[0]?.message?.content);
+    } catch (testError) {
+      console.error('❌ OpenAI API test failed:', testError.message);
+      throw testError;
+    }
+
+    // Now make the actual analysis call
     const response = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview', // or 'gpt-4o' for latest
+      model: 'gpt-3.5-turbo',
       messages: [
         {
           role: 'system',
-          content: 'You are a senior software engineer conducting code reviews. Provide detailed, actionable feedback.'
+          content: 'You are a helpful code reviewer. Be concise and constructive.'
         },
         {
           role: 'user',
           content: analysisPrompt
         }
       ],
-      max_tokens: 4000,
-      temperature: 0.1, // Lower temperature for more consistent technical analysis
-      tools: [
-        {
-          type: 'function',
-          function: {
-            name: 'analyze_code_metrics',
-            description: 'Analyze code complexity and quality metrics',
-            parameters: {
-              type: 'object',
-              properties: {
-                files: {
-                  type: 'array',
-                  items: { type: 'string' },
-                  description: 'List of files to analyze'
-                }
-              },
-              required: ['files']
-            }
-          }
-        },
-        {
-          type: 'function',
-          function: {
-            name: 'get_code_context',
-            description: 'Get additional context about code files',
-            parameters: {
-              type: 'object',
-              properties: {
-                filepath: {
-                  type: 'string',
-                  description: 'Path to the file'
-                }
-              },
-              required: ['filepath']
-            }
-          }
-        }
-      ],
-      tool_choice: 'auto'
+      max_tokens: 500,
+      temperature: 0.1,
     });
 
-    let analysis = response.choices[0].message.content;
-
-    // Handle function calls if the model wants to use tools
-    if (response.choices[0].message.tool_calls) {
-      const toolCalls = response.choices[0].message.tool_calls;
-      
-      for (const toolCall of toolCalls) {
-        if (toolCall.function.name === 'analyze_code_metrics') {
-          const args = JSON.parse(toolCall.function.arguments);
-          // You could implement additional analysis here
-          console.log('Tool call requested:', toolCall.function.name, args);
-        }
-      }
+    const analysis = response.choices[0]?.message?.content;
+    
+    console.log('📊 OpenAI Response received');
+    console.log('- Choices count:', response.choices?.length);
+    console.log('- Content length:', analysis?.length);
+    console.log('- Content preview:', analysis?.substring(0, 100) + '...');
+    
+    if (!analysis) {
+      throw new Error('No analysis content generated from OpenAI');
     }
+
+    console.log('📝 Full AI Analysis:');
+    console.log(analysis);
 
     // Post as PR comment if this is a PR
     if (prNumber && prInfo) {
-      await octokit.rest.issues.createComment({
-        owner,
-        repo,
-        issue_number: parseInt(prNumber),
-        body: `## 🤖 AI Code Review (GPT-4)\n\n${analysis}`
-      });
-
-      console.log('Posted AI analysis as PR comment');
-    } else {
-      console.log('AI Analysis:');
-      console.log(analysis);
+      try {
+        await octokit.rest.issues.createComment({
+          owner,
+          repo,
+          issue_number: parseInt(prNumber),
+          body: `## 🤖 AI Code Review\n\n${analysis}`
+        });
+        console.log('✅ Posted AI analysis as PR comment');
+      } catch (error) {
+        console.log('❌ Could not post PR comment:', error.message);
+      }
     }
 
     // Create summary file
     await fs.writeFile('ai-analysis-summary.md', `# AI Code Analysis\n\n${analysis}`);
-    console.log('Analysis complete. Summary saved to ai-analysis-summary.md');
+    console.log('✅ Analysis complete. Summary saved to ai-analysis-summary.md');
 
   } catch (error) {
-    console.error('Error running analysis:', error);
+    console.error('💥 Error running analysis:', error.message);
+    console.error('📍 Full error stack:', error.stack);
     process.exit(1);
   }
 }
 
-// Run if this is the main module
-if (import.meta.url === `file://${process.argv[1]}`) {
-  runAnalysis();
-}
+runAnalysis();
