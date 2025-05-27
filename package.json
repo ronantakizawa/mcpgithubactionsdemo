@@ -2,16 +2,60 @@
   "name": "github-actions-mcp-ai",
   "version": "1.0.0",
   "type": "module",
-  "description": "GitHub Actions workflow with MCP-connected LLM",
+  "description": "GitHub Actions workflow with MCP-connected LLM using GitHub MCP Server for AI analysis and README updates",
+  "keywords": [
+    "github-actions",
+    "mcp",
+    "model-context-protocol",
+    "ai-analysis",
+    "code-review",
+    "openai",
+    "readme-automation",
+    "issues-tracking"
+  ],
   "scripts": {
-    "analyze": "node .github/scripts/openai-mcp-analysis.js"
+    "analyze": "node .github/scripts/openai-mcp-analysis.js",
+    "update-readme": "node .github/scripts/update-readme-with-issues.js",
+    "setup": "npm install && docker pull ghcr.io/github/github-mcp-server:latest",
+    "test": "echo \"No tests specified\" && exit 0",
+    "lint": "echo \"No linting configured\" && exit 0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.5.0",
-    "openai": "^4.0.0",
-    "@octokit/rest": "^20.0.0"
+    "openai": "^4.0.0"
   },
+  "devDependencies": {},
   "engines": {
-    "node": ">=18.0.0"
-  }
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "github:your-org/your-repo"
+  },
+  "author": "Your Name",
+  "license": "MIT",
+  "config": {
+    "mcp": {
+      "server": "ghcr.io/github/github-mcp-server",
+      "version": "latest",
+      "toolsets": [
+        "repos",
+        "issues",
+        "pull_requests",
+        "users"
+      ]
+    },
+    "docker": {
+      "required": true,
+      "images": [
+        "ghcr.io/github/github-mcp-server:latest"
+      ]
+    }
+  },
+  "files": [
+    ".github/scripts/",
+    ".github/workflows/",
+    "README.md"
+  ]
 }
